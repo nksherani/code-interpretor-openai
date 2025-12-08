@@ -64,13 +64,7 @@ OPENAI_ASSISTANT_ID=
     
     Write-Host "✓ .env file created" -ForegroundColor Green
     Write-Host ""
-    Write-Host "Now creating OpenAI Assistant..." -ForegroundColor Yellow
-    python create_assistant.py
-    
-    Write-Host ""
-    Write-Host "Please copy the Assistant ID from above and update your .env file" -ForegroundColor Yellow
-    Write-Host "Press any key to continue once you've updated .env file..."
-    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    Write-Host "Assistant will be created automatically on first run!" -ForegroundColor Green
 } else {
     Write-Host "✓ .env file already exists" -ForegroundColor Green
 }
@@ -90,18 +84,33 @@ npm install
 Set-Location ..
 
 Write-Host ""
+Write-Host ""
+Write-Host "==================================" -ForegroundColor Cyan
+Write-Host "MongoDB Setup (Optional)" -ForegroundColor Cyan
+Write-Host "==================================" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "The app uses MongoDB to store assistant config." -ForegroundColor Yellow
+Write-Host "Quick option - use Docker:" -ForegroundColor Yellow
+Write-Host "  docker run -d -p 27017:27017 mongo:latest" -ForegroundColor White
+Write-Host ""
+Write-Host "Or install MongoDB locally from: https://www.mongodb.com/try/download/community" -ForegroundColor Yellow
+Write-Host ""
+
 Write-Host "==================================" -ForegroundColor Green
 Write-Host "Setup Complete!" -ForegroundColor Green
 Write-Host "==================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "To start the application:" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "Terminal 1 (Backend):" -ForegroundColor Yellow
+Write-Host "Terminal 1 (MongoDB - if using Docker):" -ForegroundColor Yellow
+Write-Host "  docker run -d -p 27017:27017 mongo:latest" -ForegroundColor White
+Write-Host ""
+Write-Host "Terminal 2 (Backend):" -ForegroundColor Yellow
 Write-Host "  cd backend" -ForegroundColor White
 Write-Host "  .\venv\Scripts\Activate.ps1" -ForegroundColor White
 Write-Host "  uvicorn main:app --reload" -ForegroundColor White
 Write-Host ""
-Write-Host "Terminal 2 (Frontend):" -ForegroundColor Yellow
+Write-Host "Terminal 3 (Frontend):" -ForegroundColor Yellow
 Write-Host "  cd frontend" -ForegroundColor White
 Write-Host "  npm run dev" -ForegroundColor White
 Write-Host ""

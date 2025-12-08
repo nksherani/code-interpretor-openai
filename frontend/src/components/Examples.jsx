@@ -1,13 +1,32 @@
 import React, { useState } from 'react';
-import { FiBarChart2, FiTrendingUp, FiImage, FiPlay } from 'react-icons/fi';
+import { FiBarChart2, FiTrendingUp, FiImage, FiPlay, FiDownload } from 'react-icons/fi';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import api from '../utils/api';
 
 function Examples() {
-  const [activeExample, setActiveExample] = useState(null);
-  const [result, setResult] = useState(null);
+  // Load state from sessionStorage
+  const [activeExample, setActiveExample] = useState(() => {
+    return sessionStorage.getItem('activeExample') || null;
+  });
+  const [result, setResult] = useState(() => {
+    const saved = sessionStorage.getItem('exampleResult');
+    return saved ? JSON.parse(saved) : null;
+  });
   const [loading, setLoading] = useState(false);
+
+  // Save state to sessionStorage
+  React.useEffect(() => {
+    if (activeExample) {
+      sessionStorage.setItem('activeExample', activeExample);
+    }
+  }, [activeExample]);
+
+  React.useEffect(() => {
+    if (result) {
+      sessionStorage.setItem('exampleResult', JSON.stringify(result));
+    }
+  }, [result]);
 
   const examples = [
     {
@@ -52,18 +71,34 @@ function Examples() {
   ];
 
   const runExample = async (exampleId) => {
+    console.log('🎯 Running example:', exampleId);
+    
     setActiveExample(exampleId);
     setLoading(true);
     setResult(null);
 
     try {
       const response = await api.runExample(exampleId);
+      
+      console.log('✓ Example completed:', {
+        exampleId,
+        messageLength: response.message?.length,
+        filesCount: response.files?.length || 0,
+      });
+      
       setResult(response);
     } catch (error) {
-      console.error('Error running example:', error);
+      console.error('✗ Error running example:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+      });
+      
       setResult({
-        message: 'Error running example. Please check your API configuration.',
+        message: error.response?.data?.detail || error.message || 'Error running example. Please check your API configuration.',
         files: [],
+        error: true,
       });
     } finally {
       setLoading(false);
@@ -72,9 +107,17 @@ function Examples() {
 
   const downloadFile = async (fileId) => {
     try {
+      console.log('📥 Downloading file:', fileId);
       await api.downloadFile(fileId);
+      console.log('✓ File downloaded successfully');
     } catch (error) {
-      console.error('Error downloading file:', error);
+      console.error('✗ Error downloading file:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+      });
+      alert(`Failed to download file: ${error.response?.data?.detail || error.message}`);
     }
   };
 
@@ -152,7 +195,9 @@ function Examples() {
             </div>
           ) : (
             <div>
-              <div className="prose prose-sm max-w-none mb-6 markdown-content">
+              <div className={`prose prose-sm max-w-none mb-6 markdown-content ${
+                result.error ? 'text-red-800 bg-red-50 p-4 rounded-lg' : ''
+              }`}>
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
                   {result.message}
                 </ReactMarkdown>
@@ -161,33 +206,55 @@ function Examples() {
               {result.files && result.files.length > 0 && (
                 <div className="border-t border-gray-200 pt-6">
                   <h4 className="font-semibold text-gray-800 mb-3">
-                    Generated Files
+                    Generated Files ({result.files.length})
                   </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4">
                     {result.files.map((file, index) => (
                       <div
                         key={index}
-                        className="flex items-center justify-between bg-gray-50 p-4 rounded-lg border border-gray-200"
+                        className="bg-gray-50 p-4 rounded-lg border border-gray-200"
                       >
-                        <div className="flex items-center space-x-3">
-                          <div className="bg-blue-100 p-2 rounded">
-                            <FiImage className="text-blue-600 text-xl" />
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center space-x-3">
+                            <div className="bg-blue-100 p-2 rounded">
+                              <FiImage className="text-blue-600 text-xl" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-gray-800">
+                                {file.type === 'image_file' ? 'Generated Image' : 'Generated File'}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                ID: {file.file_id.substring(0, 20)}...
+                              </p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-medium text-gray-800">
-                              {file.type === 'image_file' ? 'Image' : 'File'}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              ID: {file.file_id.substring(0, 20)}...
-                            </p>
-                          </div>
+                          <button
+                            onClick={() => downloadFile(file.file_id)}
+                            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm flex items-center space-x-1"
+                          >
+                            <FiDownload />
+                            <span>Download</span>
+                          </button>
                         </div>
-                        <button
-                          onClick={() => downloadFile(file.file_id)}
-                          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm"
-                        >
-                          Download
-                        </button>
+                        
+                        {/* Render image preview */}
+                        {file.type === 'image_file' && (
+                          <div className="mt-2 rounded overflow-hidden border border-gray-300 bg-white">
+                            <img
+                              src={`/api/file/${file.file_id}`}
+                              alt={`Generated visualization ${index + 1}`}
+                              className="w-full h-auto"
+                              onError={(e) => {
+                                console.error('Error loading image:', file.file_id);
+                                e.target.style.display = 'none';
+                                e.target.nextSibling.style.display = 'block';
+                              }}
+                            />
+                            <div className="hidden p-4 text-center text-gray-500">
+                              Unable to load image preview. Use download button above.
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -202,4 +269,5 @@ function Examples() {
 }
 
 export default Examples;
+
 

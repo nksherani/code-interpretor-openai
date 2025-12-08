@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FiCode, FiFileText, FiBarChart2, FiUpload } from 'react-icons/fi';
 import ChatInterface from './components/ChatInterface';
 import Examples from './components/Examples';
@@ -6,7 +6,15 @@ import FileUpload from './components/FileUpload';
 import About from './components/About';
 
 function App() {
-  const [activeTab, setActiveTab] = useState('chat');
+  // Load active tab from sessionStorage or default to 'chat'
+  const [activeTab, setActiveTab] = useState(() => {
+    return sessionStorage.getItem('activeTab') || 'chat';
+  });
+
+  // Save active tab to sessionStorage whenever it changes
+  useEffect(() => {
+    sessionStorage.setItem('activeTab', activeTab);
+  }, [activeTab]);
 
   const tabs = [
     { id: 'chat', name: 'Chat', icon: FiCode },
@@ -88,4 +96,5 @@ function App() {
 }
 
 export default App;
+
 

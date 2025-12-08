@@ -2,6 +2,8 @@
 # Get your API key from: https://platform.openai.com/api-keys
 OPENAI_API_KEY=sk-your-openai-api-key-here
 
-# Run create_assistant.py to generate your Assistant ID
-OPENAI_ASSISTANT_ID=asst-your-assistant-id-here
+# MongoDB Configuration
+MONGODB_CONNECTION_STRING=mongodb://localhost:27017/
+MONGODB_DATABASE_NAME=code-interpreter-db
+MONGODB_COLLECTION_NAME=app_config
 

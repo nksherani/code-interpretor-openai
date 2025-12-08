@@ -1,6 +1,17 @@
 version: '3.8'
 
 services:
+  mongodb:
+    image: mongo:latest
+    container_name: code_interpreter_mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      - MONGO_INITDB_DATABASE=code_interpreter_db
+    restart: unless-stopped
+
   backend:
     build:
       context: ./backend
@@ -9,10 +20,14 @@ services:
       - "8000:8000"
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - OPENAI_ASSISTANT_ID=${OPENAI_ASSISTANT_ID}
+      - MONGODB_CONNECTION_STRING=mongodb://mongodb:27017/
+      - MONGODB_DATABASE_NAME=code-interpreter-db
+      - MONGODB_COLLECTION_NAME=app_config
     volumes:
       - ./backend:/app
       - /app/venv
+    depends_on:
+      - mongodb
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
   frontend:
@@ -31,6 +46,7 @@ services:
     command: npm run dev -- --host
 
 volumes:
+  mongodb_data:
   backend_data:
   frontend_data:
 

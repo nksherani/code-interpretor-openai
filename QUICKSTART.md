@@ -31,22 +31,27 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 3. Configure API Keys
+### 3. Configure API Key & MongoDB
 
 Create `backend/.env`:
 
 ```env
 OPENAI_API_KEY=sk-your-key-here
-OPENAI_ASSISTANT_ID=
+
+# MongoDB Configuration (defaults shown)
+MONGODB_CONNECTION_STRING=mongodb://localhost:27017/
+MONGODB_DATABASE_NAME=code-interpreter-db
+MONGODB_COLLECTION_NAME=app_config
 ```
 
-### 4. Create Assistant
+### 4. Start MongoDB (Quick Option)
 
 ```bash
-python create_assistant.py
-```
+# Using Docker (recommended)
+docker run -d -p 27017:27017 mongo:latest
 
-Copy the Assistant ID to your `.env` file.
+# Or install MongoDB locally
+```
 
 ### 5. Start Backend
 
@@ -55,6 +60,11 @@ uvicorn main:app --reload
 ```
 
 ✅ Backend running at http://localhost:8000
+
+**First run will automatically:**
+- Create OpenAI Assistant
+- Save to MongoDB
+- Ready to use!
 
 ### 6. Frontend Setup (New Terminal)
 

@@ -5,11 +5,34 @@ import remarkGfm from 'remark-gfm';
 import api from '../utils/api';
 
 function ChatInterface() {
-  const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState('');
+  // Load state from sessionStorage
+  const [messages, setMessages] = useState(() => {
+    const saved = sessionStorage.getItem('chatMessages');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [input, setInput] = useState(() => {
+    return sessionStorage.getItem('chatInput') || '';
+  });
   const [loading, setLoading] = useState(false);
-  const [threadId, setThreadId] = useState(null);
+  const [threadId, setThreadId] = useState(() => {
+    return sessionStorage.getItem('chatThreadId') || null;
+  });
   const messagesEndRef = useRef(null);
+
+  // Save state to sessionStorage
+  useEffect(() => {
+    sessionStorage.setItem('chatMessages', JSON.stringify(messages));
+  }, [messages]);
+
+  useEffect(() => {
+    sessionStorage.setItem('chatInput', input);
+  }, [input]);
+
+  useEffect(() => {
+    if (threadId) {
+      sessionStorage.setItem('chatThreadId', threadId);
+    }
+  }, [threadId]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -29,8 +52,16 @@ function ChatInterface() {
     setLoading(true);
 
     try {
+      console.log('💬 Sending message:', userMessage, { threadId });
+      
       const response = await api.sendMessage(userMessage, threadId);
       setThreadId(response.thread_id);
+      
+      console.log('✓ Received response:', {
+        threadId: response.thread_id,
+        messageLength: response.message?.length,
+        filesCount: response.files?.length || 0,
+      });
       
       setMessages((prev) => [
         ...prev,
@@ -42,12 +73,20 @@ function ChatInterface() {
         },
       ]);
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('✗ Error sending message:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+      });
+      
+      const errorMessage = error.response?.data?.detail || error.message || 'Sorry, there was an error processing your request. Please try again.';
+      
       setMessages((prev) => [
         ...prev,
         {
           role: 'error',
-          content: 'Sorry, there was an error processing your request. Please try again.',
+          content: errorMessage,
         },
       ]);
     } finally {
@@ -57,10 +96,17 @@ function ChatInterface() {
 
   const handleDownloadFile = async (fileId) => {
     try {
+      console.log('📥 Downloading file:', fileId);
       await api.downloadFile(fileId);
+      console.log('✓ File downloaded successfully');
     } catch (error) {
-      console.error('Error downloading file:', error);
-      alert('Failed to download file');
+      console.error('✗ Error downloading file:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+      });
+      alert(`Failed to download file: ${error.response?.data?.detail || error.message}`);
     }
   };
 
@@ -125,31 +171,56 @@ function ChatInterface() {
                         </ReactMarkdown>
                       </div>
                       {message.files && message.files.length > 0 && (
-                        <div className="mt-4 space-y-2">
-                          {message.files.map((file, fileIndex) => (
-                            <div
-                              key={fileIndex}
-                              className="flex items-center justify-between bg-white p-3 rounded border border-gray-200"
-                            >
-                              <div className="flex items-center space-x-2">
-                                {file.type === 'image_file' ? (
-                                  <FiImage className="text-blue-600" />
-                                ) : (
-                                  <FiFile className="text-blue-600" />
+                        <div className="mt-4 space-y-3">
+                          {message.files.map((file, fileIndex) => {
+                            // Determine if file is an image based on type or filename
+                            const isImage = file.type === 'image_file' || 
+                              (file.filename && /\.(png|jpg|jpeg|gif|svg|webp)$/i.test(file.filename));
+                            
+                            return (
+                              <div key={fileIndex} className="bg-white p-3 rounded border border-gray-200">
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center space-x-2">
+                                    {isImage ? (
+                                      <FiImage className="text-blue-600" />
+                                    ) : (
+                                      <FiFile className="text-blue-600" />
+                                    )}
+                                    <span className="text-sm text-gray-700 font-medium">
+                                      {file.filename || 'Generated File'}
+                                    </span>
+                                  </div>
+                                  <button
+                                    onClick={() => handleDownloadFile(file.file_id)}
+                                    className="flex items-center space-x-1 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm"
+                                  >
+                                    <FiDownload />
+                                    <span>Download</span>
+                                  </button>
+                                </div>
+                                {/* Render image preview for image files */}
+                                {isImage && (
+                                  <div className="mt-2 rounded overflow-hidden border border-gray-200">
+                                    <img
+                                      src={`/api/file/${file.file_id}`}
+                                      alt={file.filename || "Generated visualization"}
+                                      className="w-full h-auto"
+                                      onError={(e) => {
+                                        console.error('Error loading image:', file.file_id);
+                                        e.target.style.display = 'none';
+                                        e.target.nextSibling.style.display = 'block';
+                                      }}
+                                    />
+                                    <div 
+                                      className="hidden p-4 text-center text-gray-500 bg-gray-50"
+                                    >
+                                      Unable to load image preview. Use download button above.
+                                    </div>
+                                  </div>
                                 )}
-                                <span className="text-sm text-gray-700">
-                                  Generated File
-                                </span>
                               </div>
-                              <button
-                                onClick={() => handleDownloadFile(file.file_id)}
-                                className="flex items-center space-x-1 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm"
-                              >
-                                <FiDownload />
-                                <span>Download</span>
-                              </button>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -207,4 +278,5 @@ function ChatInterface() {
 }
 
 export default ChatInterface;
+
 

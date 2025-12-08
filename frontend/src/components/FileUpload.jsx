@@ -3,12 +3,37 @@ import { FiUpload, FiFile, FiCheck, FiX } from 'react-icons/fi';
 import api from '../utils/api';
 
 function FileUpload() {
-  const [uploadedFiles, setUploadedFiles] = useState([]);
+  // Load state from sessionStorage
+  const [uploadedFiles, setUploadedFiles] = useState(() => {
+    const saved = sessionStorage.getItem('uploadedFiles');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
-  const [analysisPrompt, setAnalysisPrompt] = useState('');
-  const [analysisResult, setAnalysisResult] = useState(null);
+  const [analysisPrompt, setAnalysisPrompt] = useState(() => {
+    return sessionStorage.getItem('analysisPrompt') || '';
+  });
+  const [analysisResult, setAnalysisResult] = useState(() => {
+    const saved = sessionStorage.getItem('analysisResult');
+    return saved ? JSON.parse(saved) : null;
+  });
   const [analyzing, setAnalyzing] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({});
+
+  // Save state to sessionStorage
+  React.useEffect(() => {
+    sessionStorage.setItem('uploadedFiles', JSON.stringify(uploadedFiles));
+  }, [uploadedFiles]);
+
+  React.useEffect(() => {
+    sessionStorage.setItem('analysisPrompt', analysisPrompt);
+  }, [analysisPrompt]);
+
+  React.useEffect(() => {
+    if (analysisResult) {
+      sessionStorage.setItem('analysisResult', JSON.stringify(analysisResult));
+    }
+  }, [analysisResult]);
 
   const handleDrag = useCallback((e) => {
     e.preventDefault();
@@ -42,8 +67,27 @@ function FileUpload() {
     const fileArray = Array.from(files);
     
     for (const file of fileArray) {
+      const fileName = file.name;
+      
+      // Set initial progress
+      setUploadProgress((prev) => ({ ...prev, [fileName]: 0 }));
+      
       try {
+        // Simulate progress for better UX
+        const progressInterval = setInterval(() => {
+          setUploadProgress((prev) => ({
+            ...prev,
+            [fileName]: Math.min((prev[fileName] || 0) + 10, 90),
+          }));
+        }, 200);
+
         const response = await api.uploadFile(file);
+        
+        clearInterval(progressInterval);
+        setUploadProgress((prev) => ({ ...prev, [fileName]: 100 }));
+        
+        console.log(`✓ File uploaded successfully: ${fileName}`, response);
+        
         setUploadedFiles((prev) => [
           ...prev,
           {
@@ -53,14 +97,36 @@ function FileUpload() {
             status: 'uploaded',
           },
         ]);
+
+        // Clear progress after a delay
+        setTimeout(() => {
+          setUploadProgress((prev) => {
+            const newProgress = { ...prev };
+            delete newProgress[fileName];
+            return newProgress;
+          });
+        }, 1000);
       } catch (error) {
-        console.error('Error uploading file:', error);
+        console.error(`✗ Error uploading file: ${fileName}`, error);
+        console.error('Error details:', {
+          message: error.message,
+          response: error.response?.data,
+          status: error.response?.status,
+        });
+        
+        setUploadProgress((prev) => {
+          const newProgress = { ...prev };
+          delete newProgress[fileName];
+          return newProgress;
+        });
+        
         setUploadedFiles((prev) => [
           ...prev,
           {
             name: file.name,
             size: file.size,
             status: 'error',
+            error: error.response?.data?.detail || error.message || 'Upload failed',
           },
         ]);
       }
@@ -84,6 +150,11 @@ function FileUpload() {
   const analyzeFiles = async () => {
     if (!analysisPrompt.trim() || uploadedFiles.length === 0) return;
 
+    console.log('📊 Starting analysis...', {
+      prompt: analysisPrompt,
+      fileCount: uploadedFiles.filter((f) => f.status === 'uploaded').length,
+    });
+
     setAnalyzing(true);
     setAnalysisResult(null);
 
@@ -92,13 +163,28 @@ function FileUpload() {
         .filter((f) => f.status === 'uploaded')
         .map((f) => f.id);
       
+      console.log('📤 Sending analysis request with file IDs:', fileIds);
+      
       const response = await api.analyzeData(analysisPrompt, fileIds);
+      
+      console.log('✓ Analysis completed successfully', {
+        messageLength: response.message?.length,
+        filesGenerated: response.files?.length || 0,
+      });
+      
       setAnalysisResult(response);
     } catch (error) {
-      console.error('Error analyzing files:', error);
+      console.error('✗ Error analyzing files:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+      });
+      
       setAnalysisResult({
-        message: 'Error analyzing files. Please try again.',
+        message: error.response?.data?.detail || error.message || 'Error analyzing files. Please try again.',
         files: [],
+        error: true,
       });
     } finally {
       setAnalyzing(false);
@@ -171,41 +257,62 @@ function FileUpload() {
               {uploadedFiles.map((file, index) => (
                 <div
                   key={index}
-                  className="flex items-center justify-between bg-gray-50 p-4 rounded-lg border border-gray-200"
+                  className="bg-gray-50 p-4 rounded-lg border border-gray-200"
                 >
-                  <div className="flex items-center space-x-3 flex-1">
-                    <div
-                      className={`p-2 rounded ${
-                        file.status === 'uploaded'
-                          ? 'bg-green-100'
-                          : 'bg-red-100'
-                      }`}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3 flex-1">
+                      <div
+                        className={`p-2 rounded ${
+                          file.status === 'uploaded'
+                            ? 'bg-green-100'
+                            : 'bg-red-100'
+                        }`}
+                      >
+                        {file.status === 'uploaded' ? (
+                          <FiCheck className="text-green-600" />
+                        ) : (
+                          <FiFile className="text-red-600" />
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-800">{file.name}</p>
+                        <p className="text-sm text-gray-500">
+                          {formatFileSize(file.size)}
+                          {file.status === 'uploaded' && (
+                            <span className="ml-2 text-green-600">✓ Uploaded</span>
+                          )}
+                          {file.status === 'error' && (
+                            <span className="ml-2 text-red-600">✗ Failed</span>
+                          )}
+                        </p>
+                        {file.error && (
+                          <p className="text-xs text-red-600 mt-1">{file.error}</p>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => removeFile(index)}
+                      className="ml-4 p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
                     >
-                      {file.status === 'uploaded' ? (
-                        <FiCheck className="text-green-600" />
-                      ) : (
-                        <FiFile className="text-red-600" />
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-800">{file.name}</p>
-                      <p className="text-sm text-gray-500">
-                        {formatFileSize(file.size)}
-                        {file.status === 'uploaded' && (
-                          <span className="ml-2 text-green-600">✓ Uploaded</span>
-                        )}
-                        {file.status === 'error' && (
-                          <span className="ml-2 text-red-600">✗ Error</span>
-                        )}
-                      </p>
-                    </div>
+                      <FiX />
+                    </button>
                   </div>
-                  <button
-                    onClick={() => removeFile(index)}
-                    className="ml-4 p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
-                  >
-                    <FiX />
-                  </button>
+                  
+                  {/* Upload Progress */}
+                  {uploadProgress[file.name] !== undefined && (
+                    <div className="mt-3">
+                      <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+                        <span>Uploading...</span>
+                        <span>{uploadProgress[file.name]}%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div
+                          className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${uploadProgress[file.name]}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -241,27 +348,53 @@ function FileUpload() {
           {analysisResult && (
             <div className="mt-6 pt-6 border-t border-gray-200">
               <h4 className="font-semibold text-gray-800 mb-3">Results</h4>
-              <div className="prose prose-sm max-w-none bg-gray-50 p-4 rounded-lg">
-                <pre className="whitespace-pre-wrap text-sm">
+              <div className={`prose prose-sm max-w-none p-4 rounded-lg ${
+                analysisResult.error ? 'bg-red-50 border border-red-200' : 'bg-gray-50'
+              }`}>
+                <pre className={`whitespace-pre-wrap text-sm ${
+                  analysisResult.error ? 'text-red-800' : ''
+                }`}>
                   {analysisResult.message}
                 </pre>
               </div>
               
               {analysisResult.files && analysisResult.files.length > 0 && (
                 <div className="mt-4">
-                  <p className="text-sm font-medium text-gray-700 mb-2">
-                    Generated Files:
+                  <p className="text-sm font-medium text-gray-700 mb-3">
+                    Generated Files ({analysisResult.files.length}):
                   </p>
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {analysisResult.files.map((file, index) => (
-                      <button
-                        key={index}
-                        onClick={() => api.downloadFile(file.file_id)}
-                        className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                      >
-                        <FiFile />
-                        <span>Download File {index + 1}</span>
-                      </button>
+                      <div key={index} className="border border-gray-200 rounded-lg p-3 bg-white">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-gray-700">
+                            File {index + 1}
+                          </span>
+                          <button
+                            onClick={() => api.downloadFile(file.file_id)}
+                            className="flex items-center space-x-1 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm"
+                          >
+                            <FiFile />
+                            <span>Download</span>
+                          </button>
+                        </div>
+                        {/* Render image preview if it's an image */}
+                        <div className="rounded overflow-hidden border border-gray-200">
+                          <img
+                            src={`/api/file/${file.file_id}`}
+                            alt={`Generated file ${index + 1}`}
+                            className="w-full h-auto"
+                            onError={(e) => {
+                              console.error('Error loading image:', file.file_id);
+                              e.target.style.display = 'none';
+                              e.target.nextSibling.style.display = 'block';
+                            }}
+                          />
+                          <div className="hidden p-3 text-center text-gray-500 bg-gray-50 text-sm">
+                            Preview not available. Use download button above.
+                          </div>
+                        </div>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -275,4 +408,5 @@ function FileUpload() {
 }
 
 export default FileUpload;
+
 

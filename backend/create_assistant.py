@@ -25,3 +25,4 @@ print(f"Assistant ID: {assistant.id}")
 print(f"\nAdd this to your .env file:")
 print(f"OPENAI_ASSISTANT_ID={assistant.id}")
 
+

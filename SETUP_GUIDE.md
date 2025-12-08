@@ -105,32 +105,29 @@ Edit `.env` and add:
 
 ```
 OPENAI_API_KEY=sk-your-actual-api-key-here
-OPENAI_ASSISTANT_ID=
 ```
 
-### 3.5 Create OpenAI Assistant
+That's it! No need to manually create an assistant.
 
-Run the assistant creation script:
+### 3.5 Start MongoDB
 
+**Option 1: Docker (Easiest)**
 ```bash
-python create_assistant.py
+docker run -d -p 27017:27017 --name mongodb mongo:latest
 ```
 
-You should see output like:
+**Option 2: Local MongoDB**
+Download and install from [MongoDB website](https://www.mongodb.com/try/download/community)
 
+**Option 3: MongoDB Atlas (Cloud)**
+1. Create account at [MongoDB Atlas](https://www.mongodb.com/cloud/atlas)
+2. Create a cluster
+3. Get connection string
+4. Add to `.env`:
 ```
-Assistant created successfully!
-Assistant ID: asst_abc123xyz...
-
-Add this to your .env file:
-OPENAI_ASSISTANT_ID=asst_abc123xyz...
-```
-
-Copy the Assistant ID and update your `.env` file:
-
-```
-OPENAI_API_KEY=sk-your-actual-api-key-here
-OPENAI_ASSISTANT_ID=asst_abc123xyz...
+MONGODB_CONNECTION_STRING=mongodb+srv://username:password@cluster.mongodb.net/
+MONGODB_DATABASE_NAME=code-interpreter-db
+MONGODB_COLLECTION_NAME=app_config
 ```
 
 ### 3.6 Test Backend Server
@@ -144,9 +141,15 @@ uvicorn main:app --reload
 You should see:
 
 ```
+🚀 Starting application...
+✓ Connected to MongoDB at mongodb://localhost:27017
+✓ Created new assistant: asst_abc123xyz... (or "Using existing assistant" if already created)
+✓ Application ready with assistant: asst_abc123xyz...
 INFO:     Uvicorn running on http://127.0.0.1:8000
 INFO:     Application startup complete.
 ```
+
+The assistant is automatically created and stored in MongoDB! 🎉
 
 Test it by visiting: http://localhost:8000
 

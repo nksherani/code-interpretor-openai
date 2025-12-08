@@ -70,19 +70,26 @@ echo OPENAI_API_KEY=your_api_key_here > .env
 echo OPENAI_ASSISTANT_ID=your_assistant_id_here >> .env
 ```
 
-### 3. Create OpenAI Assistant
+### 3. Start MongoDB (Optional - defaults to localhost)
 
+The application will automatically use MongoDB for storing the assistant configuration.
+
+**Option 1: Local MongoDB**
 ```bash
-# Make sure your OPENAI_API_KEY is set in .env
-python create_assistant.py
+# Install MongoDB locally or use Docker
+docker run -d -p 27017:27017 --name mongodb mongo:latest
 ```
 
-This will create an Assistant with Code Interpreter enabled and output an Assistant ID. Copy this ID and add it to your `.env` file:
+**Option 2: MongoDB Atlas (Cloud)**
+Add to your `.env`:
+```
+MONGODB_CONNECTION_STRING=mongodb+srv://username:password@cluster.mongodb.net/
+MONGODB_DATABASE_NAME=code-interpreter-db
+MONGODB_COLLECTION_NAME=app_config
+```
 
-```
-OPENAI_API_KEY=sk-...
-OPENAI_ASSISTANT_ID=asst_...
-```
+**Option 3: Use default localhost**
+Just start the backend - it will try to connect to `mongodb://localhost:27017`
 
 ### 4. Start Backend Server
 
@@ -92,6 +99,14 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 The API will be available at `http://localhost:8000`
+
+**Note:** On first run, the application will automatically:
+- Connect to MongoDB
+- Check if an assistant exists in the database
+- Create a new assistant if needed
+- Save the assistant ID to MongoDB for future use
+
+No manual assistant creation required! 🎉
 
 ### 5. Frontend Setup
 
@@ -109,6 +124,16 @@ npm run dev
 ```
 
 The application will be available at `http://localhost:3000`
+
+## 🔄 MongoDB Integration
+
+The application now uses MongoDB to automatically manage assistant configuration:
+- ✅ **No manual assistant creation required**
+- ✅ **Assistant auto-created on first run**
+- ✅ **Persistent storage in database**
+- ✅ **Easy to scale for multi-tenant use**
+
+See [MONGODB_INTEGRATION.md](MONGODB_INTEGRATION.md) for detailed setup options.
 
 ## 📖 Usage Guide
 

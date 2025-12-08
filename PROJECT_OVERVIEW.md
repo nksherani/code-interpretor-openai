@@ -107,6 +107,7 @@ A comprehensive web application showcasing all features of OpenAI's Code Interpr
 ```
 FastAPI (Web Framework)
 ├── OpenAI SDK (AI Integration)
+├── MongoDB + Motor (Database)
 ├── Pydantic (Data Validation)
 ├── Uvicorn (ASGI Server)
 └── Python 3.11+ (Runtime)
@@ -139,8 +140,10 @@ openai-code-interpretor/
 │
 ├── backend/                    # FastAPI Backend
 │   ├── main.py                # Main API application
+│   ├── database.py            # MongoDB configuration
+│   ├── assistant_manager.py   # Assistant auto-creation logic
 │   ├── requirements.txt       # Python dependencies
-│   ├── create_assistant.py    # Assistant setup script
+│   ├── create_assistant.py    # Legacy assistant setup (optional)
 │   ├── env_template.txt       # Environment variables template
 │   └── Dockerfile            # Docker configuration
 │
