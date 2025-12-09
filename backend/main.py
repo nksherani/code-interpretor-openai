@@ -27,6 +27,7 @@ load_dotenv()
 
 from database import connect_to_mongo, close_mongo_connection, get_database
 from assistant_manager import get_or_create_assistant, get_openai_client
+from token_counter import estimate_file_tokens
 
 # Global variable to store assistant ID
 ASSISTANT_ID = None
@@ -278,10 +279,18 @@ async def upload_file(file: UploadFile = File(...)):
     """Upload a file to OpenAI for use with Code Interpreter"""
     try:
         logger.info(f"📤 Upload request received: {file.filename}")
+        
+        # Read file content
+        file_content = await file.read()
+        
+        # Estimate tokens before upload
+        token_info = estimate_file_tokens(file_content, file.filename)
+        logger.info(f"📊 Token estimate: {token_info['tokens']} tokens ({token_info['size_kb']} KB)")
+        
         # Save file temporarily
         temp_path = UPLOAD_DIR / file.filename
         with open(temp_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+            buffer.write(file_content)
         
         # Upload to OpenAI
         with open(temp_path, "rb") as f:
@@ -294,7 +303,10 @@ async def upload_file(file: UploadFile = File(...)):
         return {
             "file_id": openai_file.id,
             "filename": file.filename,
-            "status": "uploaded"
+            "status": "uploaded",
+            "token_estimate": token_info["tokens"],
+            "size_kb": token_info["size_kb"],
+            "size_bytes": token_info["size_bytes"]
         }
     
     except Exception as e:
@@ -359,6 +371,7 @@ async def analyze_data(request: AnalysisRequest):
         logger.info(f"📊 Analysis request received")
         logger.info(f"Prompt: {request.prompt[:100]}...")
         logger.info(f"Files: {len(request.file_ids)} files")
+        
         # Create thread
         thread = client.beta.threads.create()
         thread_id = thread.id
@@ -372,26 +385,56 @@ async def analyze_data(request: AnalysisRequest):
             })
         
         # Add message
-        client.beta.threads.messages.create(
+        logger.info(f"Creating message with {len(attachments)} attachments...")
+        message = client.beta.threads.messages.create(
             thread_id=thread_id,
             role="user",
             content=request.prompt,
             attachments=attachments if attachments else None
         )
+        logger.info(f"✓ Message created: {message.id}")
         
         # Run with Code Interpreter
+        logger.info(f"Creating run with assistant {ASSISTANT_ID}...")
         run = client.beta.threads.runs.create(
             thread_id=thread_id,
             assistant_id=ASSISTANT_ID,
             tools=[{"type": "code_interpreter"}]
         )
+        logger.info(f"✓ Run created: {run.id}, Status: {run.status}")
         
         # Wait for completion
+        logger.info(f"Waiting for run to complete...")
         run = wait_on_run(run, thread_id)
+        logger.info(f"✓ Run completed with status: {run.status}")
+        
+        # Check if run failed
+        if run.status == "failed":
+            error_details = run.last_error if hasattr(run, 'last_error') else 'Unknown error'
+            logger.error(f"❌ Analysis run failed: {error_details}")
+            
+            # Provide user-friendly error message
+            error_msg = str(error_details)
+            if 'rate_limit' in error_msg.lower():
+                raise HTTPException(
+                    status_code=429, 
+                    detail="Rate limit exceeded. Please wait a moment and try again."
+                )
+            raise HTTPException(status_code=500, detail=f"Analysis failed: {error_details}")
         
         # Get response
+        logger.info(f"Retrieving messages...")
         messages = client.beta.threads.messages.list(thread_id=thread_id)
+        logger.info(f"✓ Retrieved {len(messages.data)} messages")
+        
+        # Get the assistant's response (should be first in list after user message)
         latest_message = messages.data[0]
+        logger.info(f"Latest message role: {latest_message.role}")
+        
+        # Make sure we got the assistant's response, not the user's
+        if latest_message.role != "assistant":
+            logger.error(f"❌ Expected assistant message, got: {latest_message.role}")
+            raise HTTPException(status_code=500, detail="No response from assistant")
         
         text_content, annotations = process_message_content(latest_message.content)
         
@@ -400,9 +443,11 @@ async def analyze_data(request: AnalysisRequest):
             if annotation["type"] in ["file_path", "image_file"]:
                 files.append({
                     "file_id": annotation["file_id"],
-                    "type": annotation["type"]
+                    "type": annotation["type"],
+                    "filename": annotation.get("filename", "")
                 })
         
+        logger.info(f"✓ Analysis completed successfully with {len(files)} generated files")
         return ThreadResponse(
             thread_id=thread_id,
             message=text_content,
@@ -411,7 +456,10 @@ async def analyze_data(request: AnalysisRequest):
         )
     
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"❌ Error in analyze_data:")
+        logger.error(f"Error: {str(e)}")
+        logger.error(f"Traceback:\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
 @app.get("/api/thread/{thread_id}/messages")
 async def get_thread_messages(thread_id: str):

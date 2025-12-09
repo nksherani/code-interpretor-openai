@@ -95,6 +95,8 @@ function FileUpload() {
             name: file.name,
             size: file.size,
             status: 'uploaded',
+            tokenEstimate: response.token_estimate || 0,
+            sizeKb: response.size_kb || 0,
           },
         ]);
 
@@ -150,10 +152,26 @@ function FileUpload() {
   const analyzeFiles = async () => {
     if (!analysisPrompt.trim() || uploadedFiles.length === 0) return;
 
+    // Calculate total tokens
+    const uploadedFilesOnly = uploadedFiles.filter((f) => f.status === 'uploaded');
+    const totalTokens = uploadedFilesOnly.reduce((sum, f) => sum + (f.tokenEstimate || 0), 0);
+    
     console.log('📊 Starting analysis...', {
       prompt: analysisPrompt,
-      fileCount: uploadedFiles.filter((f) => f.status === 'uploaded').length,
+      fileCount: uploadedFilesOnly.length,
+      estimatedTokens: totalTokens,
     });
+
+    // Show warning if tokens are high
+    if (totalTokens > 150000) {
+      const proceed = window.confirm(
+        `⚠️ High token count detected!\n\n` +
+        `Estimated tokens: ${totalTokens.toLocaleString()}\n` +
+        `This may take longer and consume more credits.\n\n` +
+        `Do you want to proceed?`
+      );
+      if (!proceed) return;
+    }
 
     setAnalyzing(true);
     setAnalysisResult(null);
@@ -181,8 +199,13 @@ function FileUpload() {
         status: error.response?.status,
       });
       
+      const errorDetail = error.response?.data?.detail || error.message || 'Error analyzing files. Please try again.';
+      const isRateLimit = error.response?.status === 429 || errorDetail.toLowerCase().includes('rate limit');
+      
       setAnalysisResult({
-        message: error.response?.data?.detail || error.message || 'Error analyzing files. Please try again.',
+        message: isRateLimit 
+          ? '⏱️ Rate limit reached. The request will automatically retry. Please wait a moment...'
+          : errorDetail,
         files: [],
         error: true,
       });
@@ -276,18 +299,24 @@ function FileUpload() {
                       </div>
                       <div className="flex-1">
                         <p className="font-medium text-gray-800">{file.name}</p>
-                        <p className="text-sm text-gray-500">
-                          {formatFileSize(file.size)}
-                          {file.status === 'uploaded' && (
-                            <span className="ml-2 text-green-600">✓ Uploaded</span>
-                          )}
-                          {file.status === 'error' && (
-                            <span className="ml-2 text-red-600">✗ Failed</span>
-                          )}
-                        </p>
-                        {file.error && (
-                          <p className="text-xs text-red-600 mt-1">{file.error}</p>
+                      <p className="text-sm text-gray-500">
+                        {formatFileSize(file.size)}
+                        {file.status === 'uploaded' && (
+                          <span className="ml-2 text-green-600">✓ Uploaded</span>
                         )}
+                        {file.status === 'error' && (
+                          <span className="ml-2 text-red-600">✗ Failed</span>
+                        )}
+                      </p>
+                      {file.status === 'uploaded' && file.tokenEstimate > 0 && (
+                        <p className="text-xs text-blue-600 mt-1">
+                          📊 Estimated tokens: {file.tokenEstimate.toLocaleString()} 
+                          {' '}({file.sizeKb.toFixed(2)} KB)
+                        </p>
+                      )}
+                      {file.error && (
+                        <p className="text-xs text-red-600 mt-1">{file.error}</p>
+                      )}
                       </div>
                     </div>
                     <button
@@ -321,11 +350,31 @@ function FileUpload() {
       </div>
 
       {/* Analysis Section */}
-      {uploadedFiles.some((f) => f.status === 'uploaded') && (
+          {uploadedFiles.some((f) => f.status === 'uploaded') && (
         <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">
-            Analyze Data
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-800">
+              Analyze Data
+            </h3>
+            {(() => {
+              const totalTokens = uploadedFiles
+                .filter((f) => f.status === 'uploaded')
+                .reduce((sum, f) => sum + (f.tokenEstimate || 0), 0);
+              return totalTokens > 0 ? (
+                <div className="text-sm">
+                  <span className="text-gray-600">Total tokens: </span>
+                  <span className={`font-semibold ${
+                    totalTokens > 150000 ? 'text-orange-600' : 'text-blue-600'
+                  }`}>
+                    {totalTokens.toLocaleString()}
+                  </span>
+                  {totalTokens > 150000 && (
+                    <span className="ml-2 text-orange-600 text-xs">⚠️ High</span>
+                  )}
+                </div>
+              ) : null;
+            })()}
+          </div>
           
           <div className="space-y-4">
             <textarea

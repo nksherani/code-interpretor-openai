@@ -95,8 +95,13 @@ function Examples() {
         status: error.response?.status,
       });
       
+      const errorDetail = error.response?.data?.detail || error.message || 'Error running example. Please check your API configuration.';
+      const isRateLimit = error.response?.status === 429 || errorDetail.toLowerCase().includes('rate limit');
+      
       setResult({
-        message: error.response?.data?.detail || error.message || 'Error running example. Please check your API configuration.',
+        message: isRateLimit
+          ? '⏱️ Rate limit reached. The system will automatically retry. Please wait a moment...'
+          : errorDetail,
         files: [],
         error: true,
       });

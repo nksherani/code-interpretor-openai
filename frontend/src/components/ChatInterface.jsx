@@ -80,7 +80,12 @@ function ChatInterface() {
         status: error.response?.status,
       });
       
-      const errorMessage = error.response?.data?.detail || error.message || 'Sorry, there was an error processing your request. Please try again.';
+      const errorDetail = error.response?.data?.detail || error.message || 'Sorry, there was an error processing your request. Please try again.';
+      const isRateLimit = error.response?.status === 429 || errorDetail.toLowerCase().includes('rate limit');
+      
+      const errorMessage = isRateLimit
+        ? '⏱️ Rate limit reached. The system will automatically retry your request. Please wait a moment...'
+        : errorDetail;
       
       setMessages((prev) => [
         ...prev,
