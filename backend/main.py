@@ -1,13 +1,10 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from openai import OpenAI
 import os
 import json
-import time
 from typing import Optional, List
-import tempfile
 from pathlib import Path
 import shutil
 from contextlib import asynccontextmanager
@@ -26,22 +23,41 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 from database import connect_to_mongo, close_mongo_connection, get_database
-from assistant_manager import get_or_create_assistant, get_openai_client
+from assistant_manager import get_openai_client
 from token_counter import estimate_file_tokens
+from conversation_client import ResponsesClient
 
-# Global variable to store assistant ID
-ASSISTANT_ID = None
+# Code interpreter container image (can be overridden via env)
+CODE_INTERPRETER_IMAGE = os.getenv("CODE_INTERPRETER_IMAGE", "openai/code-interpreter")
+
+# Global client for responses API
+responses_client: ResponsesClient | None = None
+
+
+def require_responses_client() -> ResponsesClient:
+    if responses_client is None:
+        raise RuntimeError("Responses client is not initialized")
+    return responses_client
+
+
+def build_code_interpreter_tool():
+    """Build code interpreter tool spec per Responses API requirements."""
+    return {
+        "type": "code_interpreter",
+        "container": {"type": "auto", "memory_limit": "4g"}
+    }
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager"""
-    global ASSISTANT_ID
+    global responses_client
     
     # Startup
     print("🚀 Starting application...")
     await connect_to_mongo()
-    ASSISTANT_ID = await get_or_create_assistant()
-    print(f"✓ Application ready with assistant: {ASSISTANT_ID}")
+    # Initialize OpenAI client and responses wrapper
+    responses_client = ResponsesClient(get_openai_client())
+    print(f"✓ Application ready with Responses + Conversations")
     
     yield
     
@@ -104,17 +120,6 @@ class ThreadResponse(BaseModel):
     files: List[dict] = []
     annotations: List[dict] = []
 
-# Helper functions
-def wait_on_run(run, thread_id):
-    """Wait for a run to complete"""
-    while run.status in ["queued", "in_progress"]:
-        run = client.beta.threads.runs.retrieve(
-            thread_id=thread_id,
-            run_id=run.id,
-        )
-        time.sleep(0.5)
-    return run
-
 def process_message_content(content):
     """Process message content and extract text and file annotations"""
     text_content = ""
@@ -161,10 +166,11 @@ async def root():
 
 @app.post("/api/thread/create")
 async def create_thread():
-    """Create a new conversation thread"""
+    """Create a new conversation (thread)"""
     try:
-        thread = client.beta.threads.create()
-        return {"thread_id": thread.id, "status": "created"}
+        rc = require_responses_client()
+        convo_id = rc.create_conversation()
+        return {"thread_id": convo_id, "status": "created"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -174,95 +180,61 @@ async def chat(request: ChatRequest):
     try:
         logger.info(f"💬 Chat request received: {request.message[:50]}...")
         logger.info(f"Thread ID: {request.thread_id}")
-        # Create or use existing thread
+        rc = require_responses_client()
+        # Create or reuse conversation
         if request.thread_id:
-            thread_id = request.thread_id
-            logger.info(f"Using existing thread: {thread_id}")
+            conversation_id = request.thread_id
+            logger.info(f"Using existing conversation: {conversation_id}")
         else:
-            thread = client.beta.threads.create()
-            thread_id = thread.id
-            logger.info(f"Created new thread: {thread_id}")
-        
-        # Add message to thread
-        logger.info(f"Adding message to thread...")
-        client.beta.threads.messages.create(
-            thread_id=thread_id,
-            role="user",
-            content=request.message
+            conversation_id = rc.create_conversation()
+            logger.info(f"Created new conversation: {conversation_id}")
+
+        # Build input blocks
+        input_blocks = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "input_text", "text": request.message}
+                ]
+            }
+        ]
+
+        # Run response with code interpreter if requested (Responses API now requires container)
+        tools = []
+        if request.use_code_interpreter:
+            tools = [build_code_interpreter_tool()]
+        logger.info(f"Using tools: {tools}")
+        response = rc.run_response(
+            conversation_id=conversation_id,
+            input_blocks=input_blocks,
+            tools=tools,
         )
-        logger.info(f"✓ Message added to thread")
-        
-        # Create and run assistant
-        tools = [{"type": "code_interpreter"}] if request.use_code_interpreter else []
-        
-        logger.info(f"Creating run with assistant: {ASSISTANT_ID}")
-        logger.info(f"Tools enabled: {tools}")
-        
-        run = client.beta.threads.runs.create(
-            thread_id=thread_id,
-            assistant_id=ASSISTANT_ID,
-            tools=tools
-        )
-        logger.info(f"✓ Run created: {run.id}, Status: {run.status}")
-        
-        # Wait for completion
-        logger.info(f"Waiting for run to complete...")
-        run = wait_on_run(run, thread_id)
-        logger.info(f"✓ Run completed with status: {run.status}")
-        
-        if run.status == "failed":
-            error_details = run.last_error if hasattr(run, 'last_error') else 'Unknown error'
-            logger.error(f"❌ Run failed with error: {error_details}")
-            logger.error(f"Run ID: {run.id}")
-            logger.error(f"Thread ID: {thread_id}")
-            logger.error(f"Assistant ID: {ASSISTANT_ID}")
-            
-            # Provide helpful error message
-            if hasattr(run.last_error, 'code') and run.last_error.code == 'server_error':
-                error_msg = (
-                    "OpenAI server error occurred. This might be due to:\n"
-                    "1. OpenAI service issues - Check https://status.openai.com/\n"
-                    "2. Assistant model compatibility - Try recreating the assistant\n"
-                    "3. Temporary API issue - Please try again in a moment\n\n"
-                    f"Details: {error_details}"
-                )
-            else:
-                error_msg = f"Run failed: {error_details}"
-            
-            raise HTTPException(status_code=500, detail=error_msg)
-        
-        # Get messages
-        logger.info(f"Retrieving messages from thread...")
-        messages = client.beta.threads.messages.list(thread_id=thread_id)
-        latest_message = messages.data[0]
-        logger.info(f"✓ Retrieved {len(messages.data)} messages")
-        
-        # Process content
-        logger.info(f"Processing message content...")
-        text_content, annotations = process_message_content(latest_message.content)
-        logger.info(f"✓ Processed content: {len(text_content)} chars, {len(annotations)} annotations")
-        
-        # Process file annotations
+        response = rc.wait_on_response(response)
+
+        if response.status != "completed":
+            error_details = getattr(response, "error", "Unknown error")
+            logger.error(f"❌ Response failed: {error_details}")
+            raise HTTPException(status_code=500, detail=f"Response failed: {error_details}")
+
+        # Parse response output
+        text_content, annotations = rc.parse_response_output(response)
         files = []
         for annotation in annotations:
             if annotation["type"] in ["file_path", "image_file"]:
-                file_id = annotation["file_id"]
                 files.append({
-                    "file_id": file_id,
+                    "file_id": annotation["file_id"],
                     "type": annotation["type"],
-                    "filename": annotation.get("filename", "")
+                    "filename": annotation.get("filename", ""),
                 })
-        
-        logger.info(f"✓ Processed {len(files)} files: {files}")
-        
-        response = ThreadResponse(
-            thread_id=thread_id,
+
+        logger.info(f"✓ Chat completed with {len(files)} generated files")
+
+        return ThreadResponse(
+            thread_id=conversation_id,
             message=text_content,
             files=files,
             annotations=annotations
         )
-        logger.info(f"✓ Chat response prepared successfully")
-        return response
     
     except HTTPException as he:
         logger.error(f"❌ HTTP Exception in chat: {he.detail}")
@@ -296,7 +268,7 @@ async def upload_file(file: UploadFile = File(...)):
         with open(temp_path, "rb") as f:
             openai_file = client.files.create(
                 file=f,
-                purpose="assistants"
+                purpose="input"
             )
         
         logger.info(f"✓ File uploaded successfully: {file.filename} -> {openai_file.id}")
@@ -315,55 +287,6 @@ async def upload_file(file: UploadFile = File(...)):
         logger.error(f"Traceback:\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
-@app.get("/api/file/{file_id}")
-async def download_file(file_id: str):
-    """Download or display a file generated by Code Interpreter"""
-    try:
-        logger.info(f"📥 File request: {file_id}")
-        
-        # Retrieve file content from OpenAI
-        file_data = client.files.content(file_id)
-        file_info = client.files.retrieve(file_id)
-        
-        logger.info(f"✓ Retrieved file: {file_info.filename if hasattr(file_info, 'filename') else 'unknown'}")
-        
-        # Determine content type based on file extension or default to PNG
-        content_type = "image/png"
-        filename = f"output_{file_id}.png"
-        
-        if hasattr(file_info, 'filename') and file_info.filename:
-            filename = file_info.filename
-            if filename.endswith('.jpg') or filename.endswith('.jpeg'):
-                content_type = "image/jpeg"
-            elif filename.endswith('.png'):
-                content_type = "image/png"
-            elif filename.endswith('.gif'):
-                content_type = "image/gif"
-            elif filename.endswith('.svg'):
-                content_type = "image/svg+xml"
-            elif filename.endswith('.csv'):
-                content_type = "text/csv"
-            elif filename.endswith('.json'):
-                content_type = "application/json"
-            else:
-                content_type = "application/octet-stream"
-        
-        # Return file directly for inline display (images) or download (others)
-        return StreamingResponse(
-            iter([file_data.content]),
-            media_type=content_type,
-            headers={
-                "Content-Disposition": f"inline; filename={filename}",
-                "Cache-Control": "public, max-age=3600"
-            }
-        )
-    
-    except Exception as e:
-        logger.error(f"❌ Error retrieving file {file_id}:")
-        logger.error(f"Error: {str(e)}")
-        logger.error(f"Traceback:\n{traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=f"File retrieval failed: {str(e)}")
-
 @app.post("/api/analyze")
 async def analyze_data(request: AnalysisRequest):
     """Perform data analysis with optional file attachments"""
@@ -371,90 +294,65 @@ async def analyze_data(request: AnalysisRequest):
         logger.info(f"📊 Analysis request received")
         logger.info(f"Prompt: {request.prompt[:100]}...")
         logger.info(f"Files: {len(request.file_ids)} files")
-        
-        # Create thread
-        thread = client.beta.threads.create()
-        thread_id = thread.id
-        
-        # Prepare message with file attachments
-        attachments = []
+        rc = require_responses_client()
+
+        # Create conversation
+        conversation_id = rc.create_conversation()
+
+        # Build input blocks with text + input_file entries
+        content_items = [{"type": "input_text", "text": request.prompt}]
         for file_id in request.file_ids:
-            attachments.append({
-                "file_id": file_id,
-                "tools": [{"type": "code_interpreter"}]
-            })
-        
-        # Add message
-        logger.info(f"Creating message with {len(attachments)} attachments...")
-        message = client.beta.threads.messages.create(
-            thread_id=thread_id,
-            role="user",
-            content=request.prompt,
-            attachments=attachments if attachments else None
+            content_items.append({"type": "input_file", "file_id": file_id})
+
+        input_blocks = [
+            {
+                "role": "user",
+                "content": content_items
+            }
+        ]
+
+        # Run with Code Interpreter (Responses API requires container spec)
+        tools = [build_code_interpreter_tool()]
+        logger.info(f"Using tools: {tools}")
+        response = rc.run_response(
+            conversation_id=conversation_id,
+            input_blocks=input_blocks,
+            tools=tools,
         )
-        logger.info(f"✓ Message created: {message.id}")
-        
-        # Run with Code Interpreter
-        logger.info(f"Creating run with assistant {ASSISTANT_ID}...")
-        run = client.beta.threads.runs.create(
-            thread_id=thread_id,
-            assistant_id=ASSISTANT_ID,
-            tools=[{"type": "code_interpreter"}]
-        )
-        logger.info(f"✓ Run created: {run.id}, Status: {run.status}")
-        
-        # Wait for completion
-        logger.info(f"Waiting for run to complete...")
-        run = wait_on_run(run, thread_id)
-        logger.info(f"✓ Run completed with status: {run.status}")
-        
-        # Check if run failed
-        if run.status == "failed":
-            error_details = run.last_error if hasattr(run, 'last_error') else 'Unknown error'
+        response = rc.wait_on_response(response)
+
+        if response.status != "completed":
+            error_details = getattr(response, "error", "Unknown error")
             logger.error(f"❌ Analysis run failed: {error_details}")
-            
-            # Provide user-friendly error message
+
             error_msg = str(error_details)
-            if 'rate_limit' in error_msg.lower():
+            if "rate_limit" in error_msg.lower():
                 raise HTTPException(
-                    status_code=429, 
+                    status_code=429,
                     detail="Rate limit exceeded. Please wait a moment and try again."
                 )
             raise HTTPException(status_code=500, detail=f"Analysis failed: {error_details}")
-        
-        # Get response
-        logger.info(f"Retrieving messages...")
-        messages = client.beta.threads.messages.list(thread_id=thread_id)
-        logger.info(f"✓ Retrieved {len(messages.data)} messages")
-        
-        # Get the assistant's response (should be first in list after user message)
-        latest_message = messages.data[0]
-        logger.info(f"Latest message role: {latest_message.role}")
-        
-        # Make sure we got the assistant's response, not the user's
-        if latest_message.role != "assistant":
-            logger.error(f"❌ Expected assistant message, got: {latest_message.role}")
-            raise HTTPException(status_code=500, detail="No response from assistant")
-        
-        text_content, annotations = process_message_content(latest_message.content)
-        
+
+        # Parse response
+        text_content, annotations = rc.parse_response_output(response)
+
         files = []
         for annotation in annotations:
             if annotation["type"] in ["file_path", "image_file"]:
                 files.append({
                     "file_id": annotation["file_id"],
                     "type": annotation["type"],
-                    "filename": annotation.get("filename", "")
+                    "filename": annotation.get("filename", ""),
                 })
-        
+
         logger.info(f"✓ Analysis completed successfully with {len(files)} generated files")
         return ThreadResponse(
-            thread_id=thread_id,
+            thread_id=conversation_id,
             message=text_content,
             files=files,
             annotations=annotations
         )
-    
+
     except Exception as e:
         logger.error(f"❌ Error in analyze_data:")
         logger.error(f"Error: {str(e)}")
@@ -465,20 +363,12 @@ async def analyze_data(request: AnalysisRequest):
 async def get_thread_messages(thread_id: str):
     """Get all messages from a thread"""
     try:
-        messages = client.beta.threads.messages.list(thread_id=thread_id)
-        
-        processed_messages = []
-        for msg in messages.data:
-            text_content, annotations = process_message_content(msg.content)
-            processed_messages.append({
-                "id": msg.id,
-                "role": msg.role,
-                "content": text_content,
-                "annotations": annotations,
-                "created_at": msg.created_at
-            })
-        
-        return {"messages": processed_messages}
+        # Conversations API does not expose message listing the same way as Assistants.
+        # For now, return a 501 to indicate not supported in this implementation.
+        raise HTTPException(
+            status_code=501,
+            detail="Listing conversation messages is not supported with Responses/Conversations API in this implementation."
+        )
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

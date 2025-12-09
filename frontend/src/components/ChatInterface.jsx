@@ -195,8 +195,8 @@ function ChatInterface() {
                                       {file.filename || 'Generated File'}
                                     </span>
                                   </div>
-                                  <button
-                                    onClick={() => handleDownloadFile(file.file_id)}
+                              <button
+                                onClick={() => handleDownloadFile(file.file_id)}
                                     className="flex items-center space-x-1 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm"
                                   >
                                     <FiDownload />
