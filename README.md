@@ -34,6 +34,7 @@ A modern web application built with React and FastAPI to explore and interact wi
 
 - Node.js 18+ and npm
 - Python 3.11+
+- MongoDB (local or Atlas)
 - OpenAI API key with access to Assistants API
 - Git
 
@@ -65,31 +66,47 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 # Create .env file
-# Copy the .env.example to .env and add your keys
-echo OPENAI_API_KEY=your_api_key_here > .env
-echo OPENAI_ASSISTANT_ID=your_assistant_id_here >> .env
+# Create a .env file with your configuration
 ```
 
-### 3. Start MongoDB (Optional - defaults to localhost)
-
-The application will automatically use MongoDB for storing the assistant configuration.
-
-**Option 1: Local MongoDB**
-```bash
-# Install MongoDB locally or use Docker
-docker run -d -p 27017:27017 --name mongodb mongo:latest
-```
-
-**Option 2: MongoDB Atlas (Cloud)**
-Add to your `.env`:
-```
-MONGODB_CONNECTION_STRING=mongodb+srv://username:password@cluster.mongodb.net/
+**Example `.env` file:**
+```env
+OPENAI_API_KEY=sk-proj-your-actual-api-key-here
+MONGODB_CONNECTION_STRING=mongodb://localhost:27017/
 MONGODB_DATABASE_NAME=code-interpreter-db
 MONGODB_COLLECTION_NAME=app_config
 ```
 
-**Option 3: Use default localhost**
-Just start the backend - it will try to connect to `mongodb://localhost:27017`
+### 3. Configure Environment Variables
+
+Create a `.env` file in the `backend` directory with the following variables:
+
+```env
+# Required: OpenAI API Key
+OPENAI_API_KEY=sk-your-openai-api-key-here
+
+# MongoDB Configuration (with defaults)
+MONGODB_CONNECTION_STRING=mongodb://localhost:27017/
+MONGODB_DATABASE_NAME=code-interpreter-db
+MONGODB_COLLECTION_NAME=app_config
+```
+
+**MongoDB Options:**
+
+**Option 1: Local MongoDB (Docker - Easiest)**
+```bash
+docker run -d -p 27017:27017 --name mongodb mongo:latest
+```
+
+**Option 2: Local MongoDB (Installed)**
+Download and install from [MongoDB Community](https://www.mongodb.com/try/download/community)
+
+**Option 3: MongoDB Atlas (Cloud - Free Tier)**
+```env
+MONGODB_CONNECTION_STRING=mongodb+srv://username:password@cluster.mongodb.net/
+MONGODB_DATABASE_NAME=code-interpreter-db
+MONGODB_COLLECTION_NAME=app_config
+```
 
 ### 4. Start Backend Server
 
@@ -127,11 +144,21 @@ The application will be available at `http://localhost:3000`
 
 ## 🔄 MongoDB Integration
 
-The application now uses MongoDB to automatically manage assistant configuration:
+The application uses MongoDB to automatically manage assistant configuration:
 - ✅ **No manual assistant creation required**
 - ✅ **Assistant auto-created on first run**
 - ✅ **Persistent storage in database**
+- ✅ **Configuration managed via environment variables**
 - ✅ **Easy to scale for multi-tenant use**
+
+### Environment Variables
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `OPENAI_API_KEY` | Your OpenAI API key | - | ✅ Yes |
+| `MONGODB_CONNECTION_STRING` | MongoDB connection URL | `mongodb://localhost:27017/` | No |
+| `MONGODB_DATABASE_NAME` | Database name | `code-interpreter-db` | No |
+| `MONGODB_COLLECTION_NAME` | Collection name | `app_config` | No |
 
 See [MONGODB_INTEGRATION.md](MONGODB_INTEGRATION.md) for detailed setup options.
 
@@ -226,11 +253,26 @@ The frontend uses Tailwind CSS. Modify `frontend/tailwind.config.js` to customiz
 cd backend
 source venv/bin/activate  # or venv\Scripts\activate on Windows
 
+# Make sure MongoDB is running
+docker run -d -p 27017:27017 mongo:latest
+
 # Run with auto-reload
 uvicorn main:app --reload
 
 # Run tests (if you add them)
 pytest
+```
+
+### Environment Variables During Development
+
+Create a `.env` file in the `backend` directory:
+
+```env
+# Development configuration
+OPENAI_API_KEY=sk-your-dev-api-key
+MONGODB_CONNECTION_STRING=mongodb://localhost:27017/
+MONGODB_DATABASE_NAME=code-interpreter-dev
+MONGODB_COLLECTION_NAME=app_config
 ```
 
 ### Frontend Development
@@ -278,8 +320,15 @@ npm run build
 
 Set these environment variables in your production environment:
 
+**Required:**
 - `OPENAI_API_KEY` - Your OpenAI API key
-- `OPENAI_ASSISTANT_ID` - Your Assistant ID
+
+**MongoDB Configuration:**
+- `MONGODB_CONNECTION_STRING` - MongoDB connection string (default: `mongodb://localhost:27017/`)
+- `MONGODB_DATABASE_NAME` - Database name (default: `code-interpreter-db`)
+- `MONGODB_COLLECTION_NAME` - Collection for app config (default: `app_config`)
+
+**Note:** The OpenAI Assistant is automatically created and stored in MongoDB on first run. No manual assistant creation required!
 
 ## 🤝 Contributing
 
@@ -312,10 +361,20 @@ If you have questions or need help:
 
 ## 🔒 Security
 
-- Never commit your `.env` file or API keys
-- Use environment variables for sensitive data
-- Keep your OpenAI API key secure
-- Review the code before running examples with your data
+- ⚠️ **Never commit your `.env` file or API keys**
+- ✅ Use environment variables for all sensitive data
+- ✅ Keep your OpenAI API key secure
+- ✅ Use strong MongoDB credentials in production
+- ✅ Review the code before running with your data
+- ✅ The `.env` file is already in `.gitignore`
+
+### Security Checklist
+
+- [ ] `.env` file created and not committed to git
+- [ ] OpenAI API key is valid and has proper permissions
+- [ ] MongoDB is secured with authentication (production)
+- [ ] CORS is configured appropriately for your domain
+- [ ] API rate limits are understood and monitored
 
 ## ⚠️ Rate Limits
 
