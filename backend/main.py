@@ -279,7 +279,7 @@ async def upload_file(file: UploadFile = File(...)):
         with open(temp_path, "rb") as f:
             openai_file = client.files.create(
                 file=f,
-                purpose="input"
+                purpose="assistants"
             )
         
         logger.info(f"✓ File uploaded successfully: {file.filename} -> {openai_file.id}")
