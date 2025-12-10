@@ -26,7 +26,7 @@ A modern web application built with React and FastAPI to explore and interact wi
 
 ### Backend
 - FastAPI (Python web framework)
-- OpenAI API (GPT-4 with Code Interpreter)
+- OpenAI API (gpt-4.1 with Code Interpreter)
 - Uvicorn (ASGI server)
 - Pydantic (Data validation)
 
@@ -224,7 +224,7 @@ Edit `backend/create_assistant.py` to change the assistant's behavior:
 assistant = client.beta.assistants.create(
     name="Code Interpreter Explorer",
     instructions="Your custom instructions here...",
-    model="gpt-4-turbo-preview",
+    model="gpt-4.1",
     tools=[{"type": "code_interpreter"}]
 )
 ```

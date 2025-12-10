@@ -153,7 +153,7 @@ function About() {
             <h3 className="font-semibold text-pink-900 mb-2">AI</h3>
             <ul className="text-sm text-pink-800 space-y-1">
               <li>• OpenAI API</li>
-              <li>• GPT-4 Turbo</li>
+              <li>• gpt-4.1</li>
               <li>• Code Interpreter</li>
               <li>• Assistants API</li>
             </ul>

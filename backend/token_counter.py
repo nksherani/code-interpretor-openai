@@ -3,13 +3,13 @@ Token counting utilities for estimating OpenAI token usage
 """
 import tiktoken
 
-def estimate_tokens(text: str, model: str = "gpt-4o-mini") -> int:
+def estimate_tokens(text: str, model: str = "gpt-4.1") -> int:
     """
     Estimate the number of tokens in a text string
     
     Args:
         text: The text to count tokens for
-        model: The model name (default: gpt-4o-mini)
+        model: The model name (default: gpt-4.1)
     
     Returns:
         Estimated token count
@@ -23,7 +23,7 @@ def estimate_tokens(text: str, model: str = "gpt-4o-mini") -> int:
         # Fallback: rough estimate (1 token ≈ 4 characters)
         return len(text) // 4
 
-def estimate_file_tokens(file_content: bytes, filename: str, model: str = "gpt-4o-mini") -> dict:
+def estimate_file_tokens(file_content: bytes, filename: str, model: str = "gpt-4.1") -> dict:
     """
     Estimate tokens for a file based on its content
     

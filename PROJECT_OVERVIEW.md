@@ -322,18 +322,6 @@ docker-compose up
 - Error boundary catching
 - Performance monitoring
 
-## Cost Considerations
-
-### OpenAI API Costs
-- **GPT-4 Turbo**: ~$0.01 per 1K tokens
-- **Code Interpreter**: Included with Assistant usage
-- **File Storage**: Minimal cost
-
-### Hosting Costs
-- **Backend**: $5-20/month (basic tier)
-- **Frontend**: Free (Vercel/Netlify)
-- **Total**: ~$10-25/month estimated
-
 ## Success Metrics
 
 ✅ **Functionality**: All Code Interpreter features working

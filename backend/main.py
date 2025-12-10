@@ -26,6 +26,7 @@ from database import connect_to_mongo, close_mongo_connection, get_database
 from assistant_manager import get_openai_client
 from token_counter import estimate_file_tokens
 from conversation_client import ResponsesClient
+from file_controller import router as file_router
 
 # Code interpreter container image (can be overridden via env)
 CODE_INTERPRETER_IMAGE = os.getenv("CODE_INTERPRETER_IMAGE", "openai/code-interpreter")
@@ -46,6 +47,10 @@ def build_code_interpreter_tool():
         "type": "code_interpreter",
         "container": {"type": "auto", "memory_limit": "4g"}
     }
+
+
+def with_upload_hint(text: str) -> str:
+    return text
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -95,6 +100,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# File routes (container-files)
+app.include_router(file_router)
 
 # Get OpenAI client
 client = get_openai_client()
@@ -225,6 +233,7 @@ async def chat(request: ChatRequest):
                     "file_id": annotation["file_id"],
                     "type": annotation["type"],
                     "filename": annotation.get("filename", ""),
+                    "container_id": annotation.get("container_id"),
                 })
 
         logger.info(f"✓ Chat completed with {len(files)} generated files")
@@ -343,6 +352,7 @@ async def analyze_data(request: AnalysisRequest):
                     "file_id": annotation["file_id"],
                     "type": annotation["type"],
                     "filename": annotation.get("filename", ""),
+                    "container_id": annotation.get("container_id"),
                 })
 
         logger.info(f"✓ Analysis completed successfully with {len(files)} generated files")

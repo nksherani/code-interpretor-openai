@@ -37,9 +37,9 @@ async def check_assistant():
         print()
         
         # Check if model is available
-        if assistant.model not in ["gpt-4-turbo-preview", "gpt-4-1106-preview", "gpt-4o", "gpt-4o-mini"]:
+        if assistant.model not in ["gpt-4.1"]:
             print(f"⚠ Warning: Model '{assistant.model}' might not be available")
-            print("  Consider updating to: gpt-4o or gpt-4o-mini")
+            print("  Consider updating to: gpt-4.1")
         
         # Check tools
         has_code_interpreter = any(tool.type == "code_interpreter" for tool in assistant.tools)
@@ -50,7 +50,7 @@ async def check_assistant():
         
         print()
         print("Suggestions:")
-        print("1. Try using a different model (gpt-4o or gpt-4o-mini)")
+        print("1. Try using a different model (gpt-4.1)")
         print("2. Check OpenAI status: https://status.openai.com/")
         print("3. Try recreating the assistant")
         

@@ -99,10 +99,10 @@ function ChatInterface() {
     }
   };
 
-  const handleDownloadFile = async (fileId) => {
+  const handleDownloadFile = async (fileId, containerId) => {
     try {
-      console.log('📥 Downloading file:', fileId);
-      await api.downloadFile(fileId);
+      console.log('📥 Downloading file:', fileId, 'container:', containerId);
+      await api.downloadFile(fileId, containerId);
       console.log('✓ File downloaded successfully');
     } catch (error) {
       console.error('✗ Error downloading file:', error);
@@ -178,8 +178,7 @@ function ChatInterface() {
                       {message.files && message.files.length > 0 && (
                         <div className="mt-4 space-y-3">
                           {message.files.map((file, fileIndex) => {
-                            // Determine if file is an image based on type or filename
-                            const isImage = file.type === 'image_file' || 
+                            const isImage = file.type === 'image_file' ||
                               (file.filename && /\.(png|jpg|jpeg|gif|svg|webp)$/i.test(file.filename));
                             
                             return (
@@ -195,15 +194,14 @@ function ChatInterface() {
                                       {file.filename || 'Generated File'}
                                     </span>
                                   </div>
-                              <button
-                                onClick={() => handleDownloadFile(file.file_id)}
+                                  <button
+                                    onClick={() => handleDownloadFile(file.file_id, file.container_id)}
                                     className="flex items-center space-x-1 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm"
                                   >
                                     <FiDownload />
                                     <span>Download</span>
                                   </button>
                                 </div>
-                                {/* Render image preview for image files */}
                                 {isImage && (
                                   <div className="mt-2 rounded overflow-hidden border border-gray-200">
                                     <img

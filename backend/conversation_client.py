@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class ResponsesClient:
-    def __init__(self, client, default_model: str = "gpt-4o-mini"):
+    def __init__(self, client, default_model: str = "gpt-4.1"):
         self.client = client
         self.default_model = default_model
         if not hasattr(self.client, "conversations"):
@@ -66,6 +66,7 @@ class ResponsesClient:
         annotations = []
 
         response_id = getattr(response, "id", None)
+        current_container_id = None
 
         # Convenience: output_text attribute if present
         if hasattr(response, "output_text") and response.output_text:
@@ -74,6 +75,9 @@ class ResponsesClient:
         outputs = getattr(response, "output", None)
         if outputs:
             for block in outputs:
+                # Track container id if present on tool call blocks
+                current_container_id = getattr(block, "container_id", current_container_id)
+
                 # Some blocks have .content as a list
                 content_list = getattr(block, "content", [])
                 for item in content_list:
@@ -93,12 +97,14 @@ class ResponsesClient:
                             "file_id": item.file_path.file_id,
                             "text": getattr(item, "text", ""),
                             "response_id": response_id,
+                            "container_id": current_container_id,
                         })
                     if item_type == "image_file" and hasattr(item, "image_file"):
                         annotations.append({
                             "type": "image_file",
                             "file_id": item.image_file.file_id,
                             "response_id": response_id,
+                            "container_id": current_container_id,
                         })
                     if item_type in ("output_file", "file") and hasattr(item, "file"):
                         annotations.append({
@@ -106,12 +112,14 @@ class ResponsesClient:
                             "file_id": item.file.file_id if hasattr(item.file, "file_id") else getattr(item.file, "id", None),
                             "text": getattr(item, "text", ""),
                             "response_id": response_id,
+                            "container_id": current_container_id,
                         })
                     if item_type in ("output_image", "image") and hasattr(item, "image"):
                         annotations.append({
                             "type": "image_file",
                             "file_id": item.image.file_id if hasattr(item.image, "file_id") else getattr(item.image, "id", None),
                             "response_id": response_id,
+                            "container_id": current_container_id,
                         })
                     # Annotations inside text blocks (e.g., container file citations)
                     ann_list = getattr(item, "annotations", []) or []
@@ -125,6 +133,7 @@ class ResponsesClient:
                                     "file_id": fid,
                                     "text": getattr(ann, "text", ""),
                                     "response_id": response_id,
+                                    "container_id": current_container_id,
                                 })
 
         # Also handle top-level output_files if present
@@ -137,6 +146,7 @@ class ResponsesClient:
                         "file_id": fid,
                         "text": getattr(f, "filename", ""),
                         "response_id": response_id,
+                        "container_id": current_container_id,
                     })
 
         return "".join(text_chunks), annotations

@@ -29,14 +29,14 @@ async def get_or_create_assistant() -> str:
             print(f"⚠ Existing assistant not found in OpenAI, creating new one...")
     
     # Create new assistant
-    # Using gpt-4o-mini which is more stable and cheaper
+    # Using gpt-4.1 which is more stable and cheaper
     assistant = client.beta.assistants.create(
         name="Code Interpreter Explorer",
         instructions="""You are a helpful AI assistant with access to a Python code interpreter. 
         You can analyze data, create visualizations, perform mathematical computations, and work with files.
         Always explain your process and provide clear, detailed responses.
         When creating visualizations, save them as files so users can download them.""",
-        model="gpt-4o-mini",  # Changed from gpt-4-turbo-preview
+        model="gpt-4.1",
         tools=[{"type": "code_interpreter"}]
     )
     

@@ -62,10 +62,15 @@ const api = {
     }
   },
 
-  // Download a file
-  downloadFile: async (fileId) => {
+  // Download a file (optionally with containerId for container-files API)
+  downloadFile: async (fileId, containerId = null) => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/file/${fileId}`, {
+      const downloadUrl =
+        containerId == null
+          ? `${API_BASE_URL}/file/${fileId}`
+          : `${API_BASE_URL}/file/${fileId}?container_id=${encodeURIComponent(containerId)}`;
+
+      const response = await axios.get(downloadUrl, {
         responseType: 'blob',
       });
       
@@ -81,14 +86,14 @@ const api = {
       }
       
       // Create download link
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const blobUrl = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
-      link.href = url;
+      link.href = blobUrl;
       link.setAttribute('download', filename);
       document.body.appendChild(link);
       link.click();
       link.remove();
-      window.URL.revokeObjectURL(url);
+      window.URL.revokeObjectURL(blobUrl);
     } catch (error) {
       console.error('Error in downloadFile:', error);
       throw error;

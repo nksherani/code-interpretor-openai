@@ -110,10 +110,10 @@ function Examples() {
     }
   };
 
-  const downloadFile = async (fileId) => {
+  const downloadFile = async (fileId, containerId) => {
     try {
-      console.log('📥 Downloading file:', fileId);
-      await api.downloadFile(fileId);
+      console.log('📥 Downloading file:', fileId, 'container:', containerId);
+      await api.downloadFile(fileId, containerId);
       console.log('✓ File downloaded successfully');
     } catch (error) {
       console.error('✗ Error downloading file:', error);
@@ -234,7 +234,7 @@ function Examples() {
                             </div>
                           </div>
                           <button
-                          onClick={() => downloadFile(file.file_id)}
+                          onClick={() => downloadFile(file.file_id, file.container_id)}
                             className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm flex items-center space-x-1"
                           >
                             <FiDownload />

@@ -16,7 +16,7 @@ assistant = client.beta.assistants.create(
     You can analyze data, create visualizations, perform mathematical computations, and work with files.
     Always explain your process and provide clear, detailed responses.
     When creating visualizations, save them as files so users can download them.""",
-    model="gpt-4-turbo-preview",
+    model="gpt-4.1",
     tools=[{"type": "code_interpreter"}]
 )
 

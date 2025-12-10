@@ -33,14 +33,14 @@ async def recreate_assistant():
             print(f"⚠ Could not delete old assistant: {e}")
     
     # Create new assistant with updated model
-    print("Creating new assistant with gpt-4o-mini...")
+    print("Creating new assistant with gpt-4.1...")
     assistant = client.beta.assistants.create(
         name="Code Interpreter Explorer",
         instructions="""You are a helpful AI assistant with access to a Python code interpreter. 
         You can analyze data, create visualizations, perform mathematical computations, and work with files.
         Always explain your process and provide clear, detailed responses.
         When creating visualizations, save them as files so users can download them.""",
-        model="gpt-4o-mini",
+        model="gpt-4.1",
         tools=[{"type": "code_interpreter"}]
     )
     
