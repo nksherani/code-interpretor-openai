@@ -178,8 +178,15 @@ function ChatInterface() {
                       {message.files && message.files.length > 0 && (
                         <div className="mt-4 space-y-3">
                           {message.files.map((file, fileIndex) => {
-                            const isImage = file.type === 'image_file' ||
-                              (file.filename && /\.(png|jpg|jpeg|gif|svg|webp)$/i.test(file.filename));
+                            const displayName = file.filename || file.path || file.file_id || 'Generated File';
+                            const mimeType = file.mime_type || '';
+                            const isImage =
+                              file.type === 'image_file' ||
+                              mimeType.startsWith('image/') ||
+                              /\.(png|jpg|jpeg|gif|svg|webp|bmp)$/i.test(displayName);
+                            const fileUrl = file.container_id
+                              ? `/api/file/${file.file_id}?container_id=${encodeURIComponent(file.container_id)}`
+                              : `/api/file/${file.file_id}`;
                             
                             return (
                               <div key={fileIndex} className="bg-white p-3 rounded border border-gray-200">
@@ -191,22 +198,23 @@ function ChatInterface() {
                                       <FiFile className="text-blue-600" />
                                     )}
                                     <span className="text-sm text-gray-700 font-medium">
-                                      {file.filename || 'Generated File'}
+                                      {displayName}
                                     </span>
                                   </div>
-                                  <button
-                                    onClick={() => handleDownloadFile(file.file_id, file.container_id)}
+                                  <a
+                                    href={fileUrl}
+                                    download={displayName}
                                     className="flex items-center space-x-1 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm"
                                   >
                                     <FiDownload />
                                     <span>Download</span>
-                                  </button>
+                                  </a>
                                 </div>
                                 {isImage && (
                                   <div className="mt-2 rounded overflow-hidden border border-gray-200">
                                     <img
-                                      src={`/api/file/${file.file_id}`}
-                                      alt={file.filename || "Generated visualization"}
+                                      src={fileUrl}
+                                      alt={displayName}
                                       className="w-full h-auto"
                                       onError={(e) => {
                                         console.error('Error loading image:', file.file_id);

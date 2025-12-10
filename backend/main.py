@@ -232,7 +232,9 @@ async def chat(request: ChatRequest):
                 files.append({
                     "file_id": annotation["file_id"],
                     "type": annotation["type"],
-                    "filename": annotation.get("filename", ""),
+                    "filename": annotation.get("filename") or annotation.get("path") or annotation["file_id"],
+                    "path": annotation.get("path"),
+                    "mime_type": annotation.get("mime_type"),
                     "container_id": annotation.get("container_id"),
                 })
 

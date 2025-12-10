@@ -98,13 +98,19 @@ class ResponsesClient:
                             "file_id": fp.file_id,
                             "text": getattr(item, "text", ""),
                             "filename": getattr(fp, "filename", None) or getattr(fp, "path", None),
+                            "path": getattr(fp, "path", None) or getattr(fp, "filepath", None),
+                            "mime_type": getattr(fp, "mime_type", None) or getattr(fp, "content_type", None),
                             "response_id": response_id,
                             "container_id": current_container_id,
                         })
                     if item_type == "image_file" and hasattr(item, "image_file"):
+                        img = item.image_file
                         annotations.append({
                             "type": "image_file",
-                            "file_id": item.image_file.file_id,
+                            "file_id": img.file_id,
+                            "filename": getattr(img, "filename", None) or getattr(img, "path", None),
+                            "path": getattr(img, "path", None) or getattr(img, "filepath", None),
+                            "mime_type": getattr(img, "mime_type", None) or getattr(img, "content_type", None),
                             "response_id": response_id,
                             "container_id": current_container_id,
                         })
@@ -115,13 +121,19 @@ class ResponsesClient:
                             "file_id": fobj.file_id if hasattr(fobj, "file_id") else getattr(fobj, "id", None),
                             "text": getattr(item, "text", ""),
                             "filename": getattr(fobj, "filename", None) or getattr(fobj, "path", None),
+                            "path": getattr(fobj, "path", None) or getattr(fobj, "filepath", None),
+                            "mime_type": getattr(fobj, "mime_type", None) or getattr(fobj, "content_type", None),
                             "response_id": response_id,
                             "container_id": current_container_id,
                         })
                     if item_type in ("output_image", "image") and hasattr(item, "image"):
+                        img = item.image
                         annotations.append({
                             "type": "image_file",
-                            "file_id": item.image.file_id if hasattr(item.image, "file_id") else getattr(item.image, "id", None),
+                            "file_id": img.file_id if hasattr(img, "file_id") else getattr(img, "id", None),
+                            "filename": getattr(img, "filename", None) or getattr(img, "path", None),
+                            "path": getattr(img, "path", None) or getattr(img, "filepath", None),
+                            "mime_type": getattr(img, "mime_type", None) or getattr(img, "content_type", None),
                             "response_id": response_id,
                             "container_id": current_container_id,
                         })
@@ -137,6 +149,8 @@ class ResponsesClient:
                                     "file_id": fid,
                                     "text": getattr(ann, "text", ""),
                                     "filename": getattr(ann, "filename", None),
+                                    "path": getattr(ann, "path", None) or getattr(ann, "filepath", None),
+                                    "mime_type": getattr(ann, "mime_type", None) or getattr(ann, "content_type", None),
                                     "response_id": response_id,
                                     "container_id": current_container_id,
                                 })
@@ -151,6 +165,8 @@ class ResponsesClient:
                         "file_id": fid,
                         "text": getattr(f, "filename", ""),
                         "filename": getattr(f, "filename", None) or getattr(f, "path", None),
+                        "path": getattr(f, "path", None) or getattr(f, "filepath", None),
+                        "mime_type": getattr(f, "mime_type", None) or getattr(f, "content_type", None),
                         "response_id": response_id,
                         "container_id": current_container_id,
                     })
