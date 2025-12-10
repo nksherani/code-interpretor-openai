@@ -92,10 +92,12 @@ class ResponsesClient:
                             text_chunks.append(val)
                     # File/image handling
                     if item_type == "file_path" and hasattr(item, "file_path"):
+                        fp = item.file_path
                         annotations.append({
                             "type": "file_path",
-                            "file_id": item.file_path.file_id,
+                            "file_id": fp.file_id,
                             "text": getattr(item, "text", ""),
+                            "filename": getattr(fp, "filename", None) or getattr(fp, "path", None),
                             "response_id": response_id,
                             "container_id": current_container_id,
                         })
@@ -107,10 +109,12 @@ class ResponsesClient:
                             "container_id": current_container_id,
                         })
                     if item_type in ("output_file", "file") and hasattr(item, "file"):
+                        fobj = item.file
                         annotations.append({
                             "type": "file_path",
-                            "file_id": item.file.file_id if hasattr(item.file, "file_id") else getattr(item.file, "id", None),
+                            "file_id": fobj.file_id if hasattr(fobj, "file_id") else getattr(fobj, "id", None),
                             "text": getattr(item, "text", ""),
+                            "filename": getattr(fobj, "filename", None) or getattr(fobj, "path", None),
                             "response_id": response_id,
                             "container_id": current_container_id,
                         })
@@ -132,6 +136,7 @@ class ResponsesClient:
                                     "type": "image_file" if str(fid).endswith((".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp")) else "file_path",
                                     "file_id": fid,
                                     "text": getattr(ann, "text", ""),
+                                    "filename": getattr(ann, "filename", None),
                                     "response_id": response_id,
                                     "container_id": current_container_id,
                                 })
@@ -145,6 +150,7 @@ class ResponsesClient:
                         "type": "file_path",
                         "file_id": fid,
                         "text": getattr(f, "filename", ""),
+                        "filename": getattr(f, "filename", None) or getattr(f, "path", None),
                         "response_id": response_id,
                         "container_id": current_container_id,
                     })
