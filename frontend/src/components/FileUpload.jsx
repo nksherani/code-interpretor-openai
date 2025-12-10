@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { FiUpload, FiFile, FiCheck, FiX } from 'react-icons/fi';
+import { FiUpload, FiFile, FiCheck, FiX, FiImage, FiDownload } from 'react-icons/fi';
 import api from '../utils/api';
 
 function FileUpload() {
@@ -408,43 +408,76 @@ function FileUpload() {
               </div>
               
               {analysisResult.files && analysisResult.files.length > 0 && (
-                <div className="mt-4">
-                  <p className="text-sm font-medium text-gray-700 mb-3">
-                    Generated Files ({analysisResult.files.length}):
-                  </p>
-                  <div className="space-y-3">
-                    {analysisResult.files.map((file, index) => (
-                      <div key={index} className="border border-gray-200 rounded-lg p-3 bg-white">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-medium text-gray-700">
-                            File {index + 1}
-                          </span>
-                          <button
-                            onClick={() => api.downloadFile(file.file_id, file.container_id)}
-                            className="flex items-center space-x-1 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm"
-                          >
-                            <FiFile />
-                            <span>Download</span>
-                          </button>
-                        </div>
-                        {/* Render image preview if it's an image */}
-                        <div className="rounded overflow-hidden border border-gray-200">
-                          <img
-                            src={`/api/file/${file.file_id}`}
-                            alt={`Generated file ${index + 1}`}
-                            className="w-full h-auto"
-                            onError={(e) => {
-                              console.error('Error loading image:', file.file_id);
-                              e.target.style.display = 'none';
-                              e.target.nextSibling.style.display = 'block';
-                            }}
-                          />
-                          <div className="hidden p-3 text-center text-gray-500 bg-gray-50 text-sm">
-                            Preview not available. Use download button above.
+                <div className="border-t border-gray-200 pt-6">
+                  <h4 className="font-semibold text-gray-800 mb-3">
+                    Generated Files ({analysisResult.files.length})
+                  </h4>
+                  <div className="grid grid-cols-1 gap-4">
+                    {analysisResult.files.map((file, index) => {
+                      const displayName = file.filename || file.path || file.file_id || 'Generated File';
+                      const mimeType = file.mime_type || '';
+                      const isImage =
+                        file.type === 'image_file' ||
+                        mimeType.startsWith('image/') ||
+                        /\.(png|jpg|jpeg|gif|svg|webp|bmp)$/i.test(displayName);
+                      const fileUrl = file.container_id
+                        ? `/api/file/${file.file_id}?container_id=${encodeURIComponent(file.container_id)}`
+                        : `/api/file/${file.file_id}`;
+
+                      return (
+                        <div
+                          key={index}
+                          className="bg-gray-50 p-4 rounded-lg border border-gray-200"
+                        >
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center space-x-3">
+                              <div className="bg-blue-100 p-2 rounded">
+                                {isImage ? (
+                                  <FiImage className="text-blue-600 text-xl" />
+                                ) : (
+                                  <FiDownload className="text-blue-600 text-xl" />
+                                )}
+                              </div>
+                              <div>
+                                <p className="font-medium text-gray-800">
+                                  {displayName}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  ID: {file.file_id.substring(0, 20)}...
+                                </p>
+                              </div>
+                            </div>
+                            <a
+                              href={fileUrl}
+                              download={displayName}
+                              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm flex items-center space-x-1"
+                            >
+                              <FiDownload />
+                              <span>Download</span>
+                            </a>
                           </div>
+                          
+                          {/* Render image preview */}
+                          {isImage && (
+                            <div className="mt-2 rounded overflow-hidden border border-gray-300 bg-white">
+                              <img
+                                src={fileUrl}
+                                alt={`Generated visualization ${index + 1}`}
+                                className="w-full h-auto"
+                                onError={(e) => {
+                                  console.error('Error loading image:', file.file_id);
+                                  e.target.style.display = 'none';
+                                  e.target.nextSibling.style.display = 'block';
+                                }}
+                              />
+                              <div className="hidden p-4 text-center text-gray-500">
+                                Unable to load image preview. Use download button above.
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
