@@ -41,11 +41,14 @@ def require_responses_client() -> ResponsesClient:
     return responses_client
 
 
-def build_code_interpreter_tool():
+def build_code_interpreter_tool(file_ids: List[str] = None):
     """Build code interpreter tool spec per Responses API requirements."""
+    container = {"type": "auto", "memory_limit": "4g"}
+    if file_ids:
+        container["file_ids"] = file_ids
     return {
         "type": "code_interpreter",
-        "container": {"type": "auto", "memory_limit": "4g"}
+        "container": container
     }
 
 
@@ -312,8 +315,8 @@ async def analyze_data(request: AnalysisRequest):
 
         # Build input blocks with text + input_file entries
         content_items = [{"type": "input_text", "text": request.prompt}]
-        for file_id in request.file_ids:
-            content_items.append({"type": "input_file", "file_id": file_id})
+        # for file_id in request.file_ids:
+        #     content_items.append({"type": "input_file", "file_id": file_id})
 
         input_blocks = [
             {
@@ -323,7 +326,8 @@ async def analyze_data(request: AnalysisRequest):
         ]
 
         # Run with Code Interpreter (Responses API requires container spec)
-        tools = [build_code_interpreter_tool()]
+        # Pass file_ids to container so they're available in the execution environment
+        tools = [build_code_interpreter_tool(file_ids=request.file_ids if request.file_ids else None)]
         logger.info(f"Using tools: {tools}")
         response = rc.run_response(
             conversation_id=conversation_id,
