@@ -214,54 +214,71 @@ function Examples() {
                     Generated Files ({result.files.length})
                   </h4>
                   <div className="grid grid-cols-1 gap-4">
-                    {result.files.map((file, index) => (
-                      <div
-                        key={index}
-                        className="bg-gray-50 p-4 rounded-lg border border-gray-200"
-                      >
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center space-x-3">
-                            <div className="bg-blue-100 p-2 rounded">
-                              <FiImage className="text-blue-600 text-xl" />
+                    {result.files.map((file, index) => {
+                      const displayName = file.filename || file.path || file.file_id || 'Generated File';
+                      const mimeType = file.mime_type || '';
+                      const isImage =
+                        file.type === 'image_file' ||
+                        mimeType.startsWith('image/') ||
+                        /\.(png|jpg|jpeg|gif|svg|webp|bmp)$/i.test(displayName);
+                      const fileUrl = file.container_id
+                        ? `/api/file/${file.file_id}?container_id=${encodeURIComponent(file.container_id)}`
+                        : `/api/file/${file.file_id}`;
+
+                      return (
+                        <div
+                          key={index}
+                          className="bg-gray-50 p-4 rounded-lg border border-gray-200"
+                        >
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center space-x-3">
+                              <div className="bg-blue-100 p-2 rounded">
+                                {isImage ? (
+                                  <FiImage className="text-blue-600 text-xl" />
+                                ) : (
+                                  <FiDownload className="text-blue-600 text-xl" />
+                                )}
+                              </div>
+                              <div>
+                                <p className="font-medium text-gray-800">
+                                  {displayName}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  ID: {file.file_id.substring(0, 20)}...
+                                </p>
+                              </div>
                             </div>
-                            <div>
-                              <p className="font-medium text-gray-800">
-                                {file.type === 'image_file' ? 'Generated Image' : 'Generated File'}
-                              </p>
-                              <p className="text-xs text-gray-500">
-                                ID: {file.file_id.substring(0, 20)}...
-                              </p>
-                            </div>
+                            <a
+                              href={fileUrl}
+                              download={displayName}
+                              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm flex items-center space-x-1"
+                            >
+                              <FiDownload />
+                              <span>Download</span>
+                            </a>
                           </div>
-                          <button
-                          onClick={() => downloadFile(file.file_id, file.container_id)}
-                            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm flex items-center space-x-1"
-                          >
-                            <FiDownload />
-                            <span>Download</span>
-                          </button>
+                          
+                          {/* Render image preview */}
+                          {isImage && (
+                            <div className="mt-2 rounded overflow-hidden border border-gray-300 bg-white">
+                              <img
+                                src={fileUrl}
+                                alt={`Generated visualization ${index + 1}`}
+                                className="w-full h-auto"
+                                onError={(e) => {
+                                  console.error('Error loading image:', file.file_id);
+                                  e.target.style.display = 'none';
+                                  e.target.nextSibling.style.display = 'block';
+                                }}
+                              />
+                              <div className="hidden p-4 text-center text-gray-500">
+                                Unable to load image preview. Use download button above.
+                              </div>
+                            </div>
+                          )}
                         </div>
-                        
-                        {/* Render image preview */}
-                        {file.type === 'image_file' && (
-                          <div className="mt-2 rounded overflow-hidden border border-gray-300 bg-white">
-                            <img
-                              src={`/api/file/${file.file_id}`}
-                              alt={`Generated visualization ${index + 1}`}
-                              className="w-full h-auto"
-                              onError={(e) => {
-                                console.error('Error loading image:', file.file_id);
-                                e.target.style.display = 'none';
-                                e.target.nextSibling.style.display = 'block';
-                              }}
-                            />
-                            <div className="hidden p-4 text-center text-gray-500">
-                              Unable to load image preview. Use download button above.
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
