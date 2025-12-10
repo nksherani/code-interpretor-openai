@@ -3,6 +3,7 @@ from fastapi.responses import StreamingResponse
 import mimetypes
 import traceback
 import logging
+import os
 from typing import Optional
 
 from container_file_service import ContainerFileService
@@ -33,8 +34,17 @@ async def download_container_file(file_id: str, container_id: str):
         svc = get_service()
         file_data, file_info = svc.fetch(file_id=file_id, container_id=container_id)
 
-        # Determine content type
-        filename = getattr(file_info, "filename", None) or f"output_{file_id}.bin"
+        # Pick a filename in priority order to preserve extension for download
+        path = getattr(file_info, "path", None)
+        filename = os.path.basename(path) if path else None
+        if not filename:
+            filename = getattr(file_info, "filename", None) or getattr(file_info, "name", None)
+        if not filename:
+            filename = getattr(file_data, "filename", None)
+        if not filename:
+            filename = file_id  # last resort
+
+        # Determine content type from filename and fall back to octet-stream
         content_type, _ = mimetypes.guess_type(filename)
         content_type = content_type or "application/octet-stream"
 
@@ -42,7 +52,7 @@ async def download_container_file(file_id: str, container_id: str):
             iter([file_data.content]),
             media_type=content_type,
             headers={
-                "Content-Disposition": f"inline; filename={filename}",
+                "Content-Disposition": f"attachment; filename={filename}",
                 "Cache-Control": "public, max-age=3600",
             },
         )
